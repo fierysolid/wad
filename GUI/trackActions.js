@@ -16,7 +16,6 @@ app.init.trackActions = function(app){
     }
     var reset = function(trackNum){
         disconnectDelay(trackNum)
-        // app.bar()
         setTimeout(function(){ reconnectDelay(trackNum) }, 100)
     }
 
@@ -76,14 +75,15 @@ app.init.trackActions = function(app){
             var track  = app.loopTracks[trackNum];
             var $track = $(app.$loopTracks[trackNum]);
             console.log(app.loopTracks[trackNum].state)
-            if ( track.state.recording === true ) {
+
+            if      ( track.state.recording === true ) {
                 $track.find('i').addClass('recording')
             }
             else if ( track.state.recording === false ) {
                 $track.find('i').removeClass('recording')
             }
 
-            if ( track.state.muted === true ) {
+            if      ( track.state.muted === true ) {
                 $track.find('i').removeClass('fa-volume-up')
                 $track.find('i').addClass('fa-volume-off')
             }
@@ -94,6 +94,40 @@ app.init.trackActions = function(app){
             }
 
 
+        },
+        resizeLoop : function(bpm, beatsPerBar, barsPerLoop){
+            app.bpm         = bpm;
+            app.beatsPerBar = beatsPerBar;
+            app.barsPerLoop = barsPerLoop;
+            app.beatLen     = ( 60 / app.bpm ) * 1000; // length of one beat in milliseconds 
+            jade.render($('.beatBoxes')[0], 'beatBoxes', { barsPerLoop : app.barsPerLoop, beatsPerBar : app.beatsPerBar });
+            app.$beatBoxes = $('.beatBox');
+            for ( var i = 0; i < app.loopTracks.length; i++ ) {
+                console.log(app.loopTracks[i].delay)
+                app.loopTracks[i].delay.delayTime = app.b(app.beatsPerBar * app.barsPerLoop)
+                app.loopTracks[i].delay.delayNode.delayNode.delayTime.value = app.b(app.beatsPerBar * app.barsPerLoop)
+            }
+
+        },
+        schedule : {
+            recordToTrack : function(){
+
+            },
+            muteTrack : function(trackNum){
+                var track = app.loopTracks[trackNum]
+                if ( track.state.muted === false ) {
+                    // console.log('it was not muted')
+                    track.output.gain.oldValue = track.output.gain.value
+                    track.output.gain.value = 0;
+                    track.state.muted = true
+                }
+                else if ( track.state.muted === true ) {
+                    // console.log('it was muted')
+                    track.output.gain.value = track.output.gain.oldValue
+                    track.state.muted = false
+                }
+                app.trackActions.updateTrackDOM(trackNum)
+            }
         }
     }
 }

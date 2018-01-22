@@ -17,6 +17,7 @@ Wad is a Javascript library for manipulating audio using the new HTML5 Web Audio
             <li><a href='#panning'>Panning</a></li>
             <li><a href='#filters'>Filters</a></li>
             <li><a href='#configuring-reverb'>Configuring Reverb</a></li>
+            <li><a href='#tuna-effects'>Tuna Effects</a></li>
             <li>
                 <a href='#play'>Play()</a>
                 <ul>
@@ -36,23 +37,26 @@ Wad is a Javascript library for manipulating audio using the new HTML5 Web Audio
             <li><a href='#external-fx'>External FX</a></li>
             <li><a href='#presets'>Presets</a></li>
             <li><a href='#midi-input'>MIDI Input</a></li>
+            <li><a href='#access-to-the-audio-context'>Access to the Audio Context</a></li>
+            <li><a href='#access-to-the-audio-context'>A-Frame Integration</a></li>
         </ul>
     <li><a href='#how-to-contribute'>How To Contribute</a></li>
 </ul>
 
 <h2 id='live-demo'>Live Demo</h2>
 
-To see a demo of an app that uses a small subset of the features in Wad.js, check <a href="http://www.codecur.io/us/songdemo">this</a> out.
+To see a demo of an app that uses a small subset of the features in Wad.js, check <a href="http://codecur.io/us/projects/song-demo">this</a> out.
 
 <h2>Installation</h2>
 
 To use Wad.js in your project, simply include the script in your HTML file.
 
-<pre><code>&lt;script src="path/to/build/wad-min.js"&gt;&lt;/script&gt;</pre></code>
+<pre><code>&lt;script src="path/to/build/wad.min.js"&gt;&lt;/script&gt;</pre></code>
 
-Wad.js is also available as a bower package.
+Wad.js is also available as a bower package or as a node module.
 
 <pre><code>bower install wad</code></pre>
+<pre><code>npm install web-audio-daw</code></pre>
 
 
 
@@ -89,9 +93,10 @@ var saw = new Wad({
     source  : 'sawtooth',
     volume  : 1.0,   // Peak volume can range from 0 to an arbitrarily high number, but you probably shouldn't set it higher than 1.
     loop    : false, // If true, the audio will loop. This parameter only works for audio clips, and does nothing for oscillators. 
+    offset  : 0,     // Where in the audio clip playback begins, measured in seconds from the start of the audio clip.
     pitch   : 'A4',  // Set a default pitch on the constuctor if you don't want to set the pitch on <code>play()</code>.
     detune  : 0,     // Set a default detune on the constructor if you don't want to set detune on <code>play()</code>. Detune is measured in cents. 100 cents is equal to 1 semitone.
-    panning : -.5,    // Horizontal placement of the sound source. Possible values are from 1 to -1.
+    panning : -.5,   // Horizontal placement of the sound source. Possible values are from 1 to -1.
 
     env     : {      // This is the ADSR envelope.
         attack  : 0.0,  // Time in seconds from onset to peak volume.  Common values for oscillators may range from 0.05 to 0.3.
@@ -129,6 +134,14 @@ var saw = new Wad({
         magnitude : 3,      // how much the volume changes. Sensible values are from 1 to 10.
         speed     : 4,      // How quickly the volume changes, in cycles per second.  Sensible values are from 0.1 to 10.
         attack    : 0       // Time in seconds for the tremolo effect to reach peak magnitude.
+    },
+    tuna   : {
+        Chorus : {
+            intensity: 0.3,  //0 to 1
+            rate: 4,         //0.001 to 8
+            stereoPhase: 0, //0 to 180
+            bypass: 0
+        }
     }
 })
 </code></pre>
@@ -164,6 +177,32 @@ filter: [
 
 In order to use reverb, you will need a server to send an impulse response via XmlHttpRequest. An impulse response is a small audio file, like a wav or mp3, that describes the acoustic characteristics of a physical space.  By default, Wad.js serves a sample impulse response that you can use freely.  However, it is recommended that you use your own impulse response. To use your own impulse response, pass a URL to an impulse response file as an argument to the constructor, as shown above. You can also modify the attribute Wad.defaultImpulse to change the default impulse response. You can make your own impulse response, but it might be easier to just <a href="http://www.voxengo.com/impulses/">find one online</a>.
 
+<h3 id='tuna-effects'>Tuna Effects</h3>
+
+Tuna, everyone's favorite Web Audio effects library, is included in Wad.js. This makes it super easy to add effects from Tuna to any Wad or PolyWad.
+
+<pre><code>
+var letItBeTuna = new Wad({
+    source : 'sine',
+    tuna   : {
+        Overdrive : {
+            outputGain: 0.5,         //0 to 1+
+            drive: 0.7,              //0 to 1
+            curveAmount: 1,          //0 to 1
+            algorithmIndex: 0,       //0 to 5, selects one of our drive algorithms
+            bypass: 0
+        },
+        Chorus : {
+            intensity: 0.3,  //0 to 1
+            rate: 4,         //0.001 to 8
+            stereoPhase: 0,  //0 to 180
+            bypass: 0
+        }
+    }
+})
+</pre></code>
+
+For more information about the various Tuna effects and the arguments they take, <a href="https://github.com/Theodeus/tuna/wiki#the-nodes">check out the Tuna wiki</a>.
 
 <h3 id='play-arguments'>Play()</h3>
 
@@ -175,6 +214,7 @@ saw.play({
     volume  : 0.8,
     wait    : 0,     // Time in seconds between calling play() and actually triggering the note.
     loop    : false, // This overrides the value for loop on the constructor, if it was set. 
+    offset  : 0,     // This overrides the value for offset on the constructor, if it was set.
     pitch   : 'A4',  // A4 is 440 hertz.
     label   : 'A',   // A label that identifies this note.
     env     : {hold : 9001},
@@ -380,15 +420,25 @@ Wad.js can read MIDI data from MIDI instruments and controllers, and you can set
 If you want to get creative with how Wad.js handles MIDI data, I strongly encourage you to write your own MIDI handler functions. For example, note-on velocity (how hard you press a key when playing a note) usually modulates the volume of a note, but it might sound interesting if you configure note-on velocity to modulate the attack or filter frequency instead. You could configure the right half of your keyboard to play a guitar, and configure the left half of your keyboard to play a bass. If you want to take that a step further, you can use a sustain pedal to toggle between slap and pop sounds on the bass, if you're into that style of music. Or maybe you'd like to map the lowest octave on your keyboard to a drum kit, and use a sustain pedal to play the kick-drum. You can do almost anything, if you're clever. Wad.js simply maps MIDI data to function calls, so your MIDI device can do anything that you can accomplish with Javascript. You can send MIDI data through websockets for some kind of WAN concert, or set up a Twitter bot that automatically tells your friends what key you've been playing in. If you can design a really cool and creative MIDI rig, I'd love to hear about it, and might include it in Wad.js.
 
 <pre><code>
-Wad.midiInputs[0].onmidimessage = function(event){
+var midiMap = function(event){
     console.log(event.receivedTime, event.data);
-};
-Wad.midiInputs[1].onmidimessage = anotherMidiHandlerFunction // If you have multiple MIDI devices that you would like to use simultaneously, you will need multiple MIDI handler functions.
+}
+
+Wad.assignMidiMap(midiMap)
 </code></pre>
 
-As of writing this, MIDI is poorly supported by most browsers. In Chrome, MIDI is an 'experimental feature', so you will need to <a href="http://stackoverflow.com/questions/21821121/web-midi-api-not-implemented-in-chrome-canary">enable it manually</a>. 
+If you have multiple MIDI devices that you would like to use simultaneously, you will need multiple MIDI handler functions. The second argument to <code>Wad.assignMidiMap</code> is used to specify the index of the MIDI device you would like to assign to. 
 
-You will also need to install the <a href="http://jazz-soft.net/doc/Jazz-Plugin/">jazz plugin</a> to give your browser access to MIDI input. 
+<pre><code>
+    Wad.assignMidiMap(anotherMidiHandlerFunction, 1)  
+    Wad.midiInputs[1].onmidimessage = anotherMidiHandlerFunction 
+</pre></code>
+
+<code>Wad.assignMidiMap</code> can also accept success and failure callbacks as its third and fourth arguments, to handle cases where the MIDI device you are trying to assign to cannot be found. 
+
+<h3 id="access-to-the-audio-context">Access to the Audio Context</h3>
+
+When Wad.js loads initially, it automatically creates an Audio Context. It shouldn't be necessary to access the Audio Context directly, but if you need it for some reason, it is exposed at <code>Wad.audioContext</code>. <span id="a-frame-integration">If you are using <a href="https://aframe.io/">A-Frame</a> in your application and Wad.js detects an `<a-scene>` element on the page, Wad.js will use A-Frame's Audio Context and Audio Listener, instead of creating its own.</span>
 
 <h2>How To Contribute</h2>
 
@@ -397,15 +447,5 @@ I've put a lot of work into this project, but there's still plenty of room for i
 
 <h3>Cross-Browser Compatibility</h3>
 
-I tried to future-proof Wad.js by using standards-compliant methods, but the cross-browser compatibility is still not great. It works best in Chrome, decently in Safari for iOS, and it works very poorly in Firefox. I have not tested it in any other browsers. I would greatly appreciate contributions to help Wad.js run optimally in any browser that supports Web Audio, especially mobile browsers.
-
-
-<h3>Low Frequency Oscillators</h3>
-
-Originally, I had wanted to allow users to easily add an LFO to any parameter, such as pitch, volume, panning, resonance, filter cutoff frequency, etc, but this turned out to be fairly difficult for me to implement. Instead, I implemented LFOs specifically for pitch (vibrato) and volume (tremolo). If anyone can implement more versatile LFOs, that would be awesome.
-
-
-<h3>Presets</h3>
-
-It would be nice if there were more presets, so that users wouldn't have to make most of their sounds from scratch. If you enjoy making your own sounds with Wad.js, consider submitting them to be used as presets. Better yet, you can bundle together a bunch of presets as a 'preset-pack'.
+I tried to future-proof Wad.js by using standards-compliant methods, but the cross-browser compatibility is still not great. It works best in Chrome, decently in Safari for iOS, and it works poorly in Firefox. I have not tested it in any other browsers. I would greatly appreciate contributions to help Wad.js run optimally in any browser that supports Web Audio, especially mobile browsers.
 
